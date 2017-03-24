@@ -73,5 +73,38 @@
     </dependency>
 
   </dependencies>
+  <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-release-plugin</artifactId>
+            <configuration>
+              <tagNameFormat>v@{project.version}</tagNameFormat>
+              <localCheckout>true</localCheckout>
+              <pushChanges>true</pushChanges>
+            </configuration>
+          </plugin>
+        
+        </plugins>
 
+        <extensions>
+            <extension>
+                <groupId>org.apache.maven.wagon</groupId>
+                <artifactId>wagon-ssh</artifactId>
+                <version>2.10</version>
+            </extension>
+        </extensions>   
+  </build>
+  <distributionManagement>
+    <repository>
+      <id>foconis-snapshot</id>
+      <name>Default Deploy Repository</name>
+      <url>sftp://bamboo@repo.foconis.de/var/www/html/repo/maven-release/</url>
+    </repository>
+    <snapshotRepository>
+      <id>foconis-snapshot</id>
+      <name>Default Deploy Repository</name>
+      <url>sftp://bamboo@repo.foconis.de/var/www/html/repo/maven-snapshot/</url>
+    </snapshotRepository>
+  </distributionManagement>          
 </project>
