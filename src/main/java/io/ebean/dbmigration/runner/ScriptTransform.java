@@ -9,15 +9,10 @@ import java.util.Map;
 class ScriptTransform {
 
   /**
-   * Transform ${table} with the table name and ${schema_prefix} with the schema name + '.'.
+   * Transform just ${table} with the table name.
    */
-  public static String schemaTable(String schemaName, String tableName, String script) {
-    if (schemaName == null || schemaName.isEmpty()) {
-    	script = script.replace("${schema_prefix}", "");
-    } else {
-    	script = script.replace("${schema_prefix}", schemaName + ".");   	
-    }
-	  return script.replace("${table}", tableName);
+  static String replace(String key, String value, String script) {
+    return script.replace(key, value);
   }
 
   private final Map<String,String> placeholders = new HashMap<>();

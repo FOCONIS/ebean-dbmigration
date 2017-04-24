@@ -1,4 +1,4 @@
-create table ${schema_prefix}${table} (
+create table ${table} (
   id                           integer not null,
   mtype                        varchar(1) not null,
   mstatus                      varchar(10) not null,
@@ -8,6 +8,6 @@ create table ${schema_prefix}${table} (
   run_on                       timestamp not null,
   run_by                       varchar(30) not null,
   run_time                     integer not null,
-  constraint pk_${table} primary key (id)
+  constraint ${pk_table} primary key (id)
 );
 
