@@ -15,6 +15,8 @@ public class MigrationConfig {
 
   private String migrationPath = "dbmigration";
 
+  private String migrationInitPath = "dbinit";
+
   private String metaTable = "db_migration";
 
   private String applySuffix = ".sql";
@@ -33,8 +35,16 @@ public class MigrationConfig {
   private String dbUrl;
 
   private String dbSchema;
+
   private boolean createSchemaIfNotExists = true;
+
+  private boolean setCurrentSchema = true;
+
+  private boolean allowErrorInRepeatable;
+
   private String platformName;
+
+  private JdbcMigrationFactory jdbcMigrationFactory = new DefaultMigrationFactory();
 
   /**
    * Versions that we want to insert into migration history without actually running.
@@ -76,6 +86,20 @@ public class MigrationConfig {
       return versions;
     }
     return null;
+  }
+
+  /**
+   * Return true if we continue running the migration when a repeatable migration fails.
+   */
+  public boolean isAllowErrorInRepeatable() {
+    return allowErrorInRepeatable;
+  }
+
+  /**
+   * Set to true to continue running the migration when a repeatable migration fails.
+   */
+  public void setAllowErrorInRepeatable(boolean allowErrorInRepeatable) {
+    this.allowErrorInRepeatable = allowErrorInRepeatable;
   }
 
   /**
@@ -182,6 +206,20 @@ public class MigrationConfig {
    */
   public void setMigrationPath(String migrationPath) {
     this.migrationPath = migrationPath;
+  }
+
+  /**
+   * Return the path for containing init migration scripts.
+   */
+  public String getMigrationInitPath() {
+    return migrationInitPath;
+  }
+
+  /**
+   * Set the path containing init migration scripts.
+   */
+  public void setMigrationInitPath(String migrationInitPath) {
+    this.migrationInitPath = migrationInitPath;
   }
 
   /**
@@ -313,6 +351,24 @@ public class MigrationConfig {
   }
 
   /**
+   * Return true if the dbSchema should be set as current schema.
+   */
+  public boolean isSetCurrentSchema() {
+    return setCurrentSchema;
+  }
+
+  /**
+   * Set if the dbSchema should be set as current schema.
+   * <p>
+   * We want to set this to false for the case of Postgres where the dbSchema matches the DB username.
+   * If we set the dbSchema that can mess up the Postgres search path so we turn this off in that case.
+   * </p>
+   */
+  public void setSetCurrentSchema(boolean setCurrentSchema) {
+    this.setCurrentSchema = setCurrentSchema;
+  }
+
+  /**
    * Return the DB platform name (used for platform create table and select for update syntax).
    */
   public String getPlatformName() {
@@ -347,6 +403,20 @@ public class MigrationConfig {
   }
 
   /**
+   * Returns the jdbcMigrationFactory.
+   */
+  public JdbcMigrationFactory getJdbcMigrationFactory() {
+    return jdbcMigrationFactory;
+  }
+
+  /**
+   * Sets the jdbcMigrationFactory.
+   */
+  public void setJdbcMigrationFactory(JdbcMigrationFactory jdbcMigrationFactory) {
+    this.jdbcMigrationFactory = jdbcMigrationFactory;
+  }
+
+  /**
    * Load configuration from standard properties.
    */
   public void load(Properties props) {
@@ -366,11 +436,15 @@ public class MigrationConfig {
     if (createSchema != null) {
       createSchemaIfNotExists = Boolean.parseBoolean(createSchema);
     }
-
+    String setSchema = props.getProperty("dbmigration.setCurrentSchema");
+    if (setSchema != null) {
+      setCurrentSchema = Boolean.parseBoolean(setSchema);
+    }
     platformName = props.getProperty("dbmigration.platformName", platformName);
     applySuffix = props.getProperty("dbmigration.applySuffix", applySuffix);
     metaTable = props.getProperty("dbmigration.metaTable", metaTable);
     migrationPath = props.getProperty("dbmigration.migrationPath", migrationPath);
+    migrationInitPath = props.getProperty("dbmigration.migrationInitPath", migrationInitPath);
     runPlaceholders = props.getProperty("dbmigration.placeholders", runPlaceholders);
 
     String patchInsertOn = props.getProperty("dbmigration.patchInsertOn");
@@ -378,7 +452,7 @@ public class MigrationConfig {
       setPatchInsertOn(patchInsertOn);
     }
     String patchResetChecksumOn = props.getProperty("dbmigration.patchResetChecksumOn");
-    if (patchInsertOn != null) {
+    if (patchResetChecksumOn != null) {
       setPatchResetChecksumOn(patchResetChecksumOn);
     }
     String runPlaceholders = props.getProperty("dbmigration.runPlaceholders");
@@ -418,6 +492,28 @@ public class MigrationConfig {
       Class.forName(dbDriver, true, getClassLoader());
     } catch (Throwable e) {
       throw new MigrationException("Problem loading Database Driver [" + dbDriver + "]: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Default factory. Uses the migration's class loader and injects the config if necessary.
+   *
+   * @author Roland Praml, FOCONIS AG
+   */
+  public class DefaultMigrationFactory implements JdbcMigrationFactory {
+
+    @Override
+    public JdbcMigration createInstance(String className) {
+      try {
+        Class<?> clazz = Class.forName(className, true, MigrationConfig.this.getClassLoader());
+        JdbcMigration migration = (JdbcMigration) clazz.newInstance();
+        if (migration instanceof ConfigurationAware) {
+          ((ConfigurationAware) migration).setMigrationConfig(MigrationConfig.this);
+        }
+        return migration;
+      } catch (Exception e) {
+        throw new IllegalArgumentException(className + " is not a valid JdbcMigration", e);
+      }
     }
   }
 

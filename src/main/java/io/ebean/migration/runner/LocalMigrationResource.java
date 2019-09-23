@@ -1,36 +1,25 @@
 package io.ebean.migration.runner;
 
 import io.ebean.migration.MigrationVersion;
-import org.avaje.classpath.scanner.Resource;
 
 /**
- * A DB migration resource (DDL script with version).
+ * A DB migration resource (DDL or Jdbc)
  */
-public class LocalMigrationResource implements Comparable<LocalMigrationResource> {
+public abstract class LocalMigrationResource implements Comparable<LocalMigrationResource> {
 
-  /**
-   * Code for repeatable migrations.
-   */
-  private static final String REPEAT_TYPE = "R";
+  protected final MigrationVersion version;
 
-  /**
-   * Code for version migrations.
-   */
-  private static final String VERSION_TYPE = "V";
+  protected final String location;
 
-  private final MigrationVersion version;
-
-  private final String location;
-
-  private final Resource resource;
+  private String type;
 
   /**
    * Construct with version and resource.
    */
-  public LocalMigrationResource(MigrationVersion version, String location, Resource resource) {
+  public LocalMigrationResource(MigrationVersion version, String location) {
     this.version = version;
     this.location = location;
-    this.resource = resource;
+    this.type = version.getType();
   }
 
   public String toString() {
@@ -42,6 +31,20 @@ public class LocalMigrationResource implements Comparable<LocalMigrationResource
    */
   public boolean isRepeatable() {
     return version.isRepeatable();
+  }
+
+  /**
+   * Return true if the underlying version is "repeatable init".
+   */
+  public boolean isRepeatableInit() {
+    return version.isRepeatableInit();
+  }
+
+  /**
+   * Return true if the underlying version is "repeatable last".
+   */
+  public boolean isRepeatableLast() {
+    return version.isRepeatableLast();
   }
 
   /**
@@ -86,16 +89,21 @@ public class LocalMigrationResource implements Comparable<LocalMigrationResource
   }
 
   /**
-   * Return the content for the migration apply ddl script.
+   * Return the content of the migration.
    */
-  public String getContent() {
-    return resource.loadAsString("UTF-8");
-  }
+  public abstract String getContent();
 
   /**
    * Return the type code ("R" or "V") for this migration.
    */
   public String getType() {
-    return isRepeatable() ? REPEAT_TYPE : VERSION_TYPE;
+    return type;
+  }
+
+  /**
+   * Set the migration to be an Init migration.
+   */
+  public void setInitType() {
+    this.type = MigrationVersion.BOOTINIT_TYPE;
   }
 }

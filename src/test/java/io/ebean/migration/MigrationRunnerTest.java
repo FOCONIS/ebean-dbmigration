@@ -32,7 +32,11 @@ public class MigrationRunnerTest {
     MigrationRunner runner = new MigrationRunner(config);
 
     List<LocalMigrationResource> check = runner.checkState();
-    assertThat(check).hasSize(3);
+    assertThat(check).hasSize(5);
+
+    assertThat(check.get(0).getContent()).contains("-- do nothing");
+    assertThat(check.get(1).getContent()).contains("create table m1");
+    assertThat(check.get(2).getContent()).contains("create table m3");
 
     runner.run();
   }
@@ -102,6 +106,30 @@ public class MigrationRunnerTest {
     assertThat(checkState).isEmpty();
     runner.run(dataSource);
 
+  }
+
+  @Test
+  public void run_with_dbinit() {
+
+    DataSourceConfig dataSourceConfig = new DataSourceConfig();
+    dataSourceConfig.setDriver("org.h2.Driver");
+    dataSourceConfig.setUrl("jdbc:h2:mem:testsDbInit");
+    dataSourceConfig.setUsername("sa");
+    dataSourceConfig.setPassword("");
+
+    Factory factory = new Factory();
+    DataSourcePool dataSource = factory.createPool("test", dataSourceConfig);
+
+    MigrationConfig config = createMigrationConfig();
+    config.setDbUrl("jdbc:h2:mem:testsDbInit");
+    config.setMigrationPath("dbmig5_base");
+    config.setMigrationInitPath("dbmig5_init");
+
+    MigrationRunner runner = new MigrationRunner(config);
+    runner.run(dataSource);
+
+    MigrationRunner runner2 = new MigrationRunner(config);
+    runner2.run(dataSource);
   }
 
   /**

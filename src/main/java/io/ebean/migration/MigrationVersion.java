@@ -1,9 +1,9 @@
 package io.ebean.migration;
 
-import java.util.Arrays;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Arrays;
 
 /**
  * The version of a migration used so that migrations are processed in order.
@@ -11,6 +11,14 @@ import org.slf4j.LoggerFactory;
 public class MigrationVersion implements Comparable<MigrationVersion> {
 
   private static final Logger logger = LoggerFactory.getLogger(MigrationVersion.class);
+
+  public static final String BOOTINIT_TYPE = "B";
+
+  private static final String INIT_TYPE = "I";
+
+  private static final String REPEAT_TYPE = "R";
+
+  private static final String VERSION_TYPE = "V";
 
   private static final int[] REPEAT_ORDERING_MIN = {Integer.MIN_VALUE};
 
@@ -57,6 +65,20 @@ public class MigrationVersion implements Comparable<MigrationVersion> {
    */
   public boolean isRepeatable() {
     return ordering == REPEAT_ORDERING_MIN || ordering == REPEAT_ORDERING_MAX;
+  }
+
+  /**
+   * Return true if this is a "repeatable init" verision.
+   */
+  public boolean isRepeatableInit() {
+    return ordering == REPEAT_ORDERING_MIN;
+  }
+
+  /**
+   * Return true if this is a "repeatable last" verision.
+   */
+  public boolean isRepeatableLast() {
+    return ordering == REPEAT_ORDERING_MAX;
   }
 
   /**
@@ -114,7 +136,7 @@ public class MigrationVersion implements Comparable<MigrationVersion> {
   private String formattedVersion(boolean normalised, boolean nextVersion) {
 
     if (isRepeatable()) {
-      return "R";
+      return getType();
     }
     StringBuilder sb = new StringBuilder();
     for (int i = 0; i < ordering.length; i++) {
@@ -148,7 +170,7 @@ public class MigrationVersion implements Comparable<MigrationVersion> {
     if (ordering.length < otherLength) {
       return -1;
     }
-    return comment.compareTo(other.comment);
+    return isRepeatable() ? comment.compareTo(other.comment) : 0;
   }
 
   /**
@@ -206,7 +228,7 @@ public class MigrationVersion implements Comparable<MigrationVersion> {
       } catch (NumberFormatException e) {
         // stop parsing
         logger.warn("The migrationscript '{}' contains non numeric version part. "
-            + "This may lead to misordered version scripts. NumberFormatException {}", raw, e.getMessage());
+          + "This may lead to misordered version scripts. NumberFormatException {}", raw, e.getMessage());
         break;
       }
     }
@@ -217,4 +239,18 @@ public class MigrationVersion implements Comparable<MigrationVersion> {
     return new MigrationVersion(raw, actualOrder, actualUnderscores, comment);
   }
 
+  /**
+   * Return the version type (I, R or V).
+   */
+  public String getType() {
+    if (ordering == REPEAT_ORDERING_MIN) {
+      return INIT_TYPE;
+
+    } else if (ordering == REPEAT_ORDERING_MAX) {
+      return REPEAT_TYPE;
+
+    } else {
+      return VERSION_TYPE;
+    }
+  }
 }

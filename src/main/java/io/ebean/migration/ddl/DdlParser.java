@@ -2,7 +2,7 @@ package io.ebean.migration.ddl;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.StringReader;
+import java.io.Reader;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -14,7 +14,7 @@ public class DdlParser {
   /**
    * Break up the sql in reader into a list of statements using the semi-colon and $$ delimiters;
    */
-  public List<String> parse(StringReader reader) {
+  public List<String> parse(Reader reader) {
 
     try {
       BufferedReader br = new BufferedReader(reader);
@@ -22,7 +22,6 @@ public class DdlParser {
 
       String s;
       while ((s = br.readLine()) != null) {
-        s = s.trim();
         statements.nextLine(s);
       }
       statements.endOfContent();
@@ -42,6 +41,11 @@ public class DdlParser {
    */
   static class StatementsSeparator {
 
+    private static final String EOL = "\n";
+
+    private static final String GO = "GO";
+    private static final String PROCEDURE = " PROCEDURE ";
+
     ArrayList<String> statements = new ArrayList<>();
 
     boolean trimDelimiter;
@@ -49,6 +53,9 @@ public class DdlParser {
     boolean inDbProcedure;
 
     StringBuilder sb = new StringBuilder();
+
+    int lineCount;
+    int quoteCount;
 
     void lineContainsDollars(String line) {
       if (inDbProcedure) {
@@ -60,23 +67,43 @@ public class DdlParser {
         // MySql style delimiter needs to be trimmed/removed
         trimDelimiter = line.equals("delimiter $$");
         if (!trimDelimiter) {
-          sb.append(line).append(" ");
+          sb.append(line).append(EOL);
         }
+        inDbProcedure = true;
       }
-      inDbProcedure = !inDbProcedure;
     }
 
     void endOfStatement(String line) {
       // end of Db procedure
       sb.append(line);
       statements.add(sb.toString().trim());
+      newBuffer();
+    }
+
+    private void newBuffer() {
+      quoteCount = 0;
+      lineCount = 0;
+      inDbProcedure = false;
       sb = new StringBuilder();
     }
 
+    /**
+     * Process the next line of the script.
+     */
     void nextLine(String line) {
+
+      if (line.trim().equals(GO)) {
+        endOfStatement("");
+        return;
+      }
 
       if (line.contains("$$")) {
         lineContainsDollars(line);
+        return;
+      }
+
+      if (inDbProcedure) {
+        sb.append(line).append(EOL);
         return;
       }
 
@@ -85,14 +112,21 @@ public class DdlParser {
         return;
       }
 
-      if (inDbProcedure) {
-        sb.append(line).append(" ");
+      if (lineCount == 0 && isStartDbProcedure(line)) {
+        inDbProcedure = true;
+      }
+
+      lineCount++;
+      quoteCount += countQuotes(line);
+      if (hasOddQuotes()) {
+        // must continue
+        sb.append(line).append(EOL);
         return;
       }
 
       int semiPos = line.lastIndexOf(';');
       if (semiPos == -1) {
-        sb.append(line).append(" ");
+        sb.append(line).append(EOL);
 
       } else if (semiPos == line.length() - 1) {
         // semicolon at end of line
@@ -100,14 +134,43 @@ public class DdlParser {
 
       } else {
         // semicolon in middle of line
-        String preSemi = line.substring(0, semiPos + 1);
-        endOfStatement(preSemi);
-
         String remaining = line.substring(semiPos + 1).trim();
         if (!remaining.startsWith("--")) {
-          sb.append(remaining).append("\n");
+          // remaining not an inline sql comment so keep going ...
+          sb.append(line).append(EOL);
+          return;
+        }
+
+        String preSemi = line.substring(0, semiPos + 1);
+        endOfStatement(preSemi);
+      }
+    }
+
+    /**
+     * Return true if the start of DB procedure is detected.
+     */
+    private boolean isStartDbProcedure(String line) {
+      return line.length() > 26 && line.substring(0, 26).toUpperCase().contains(PROCEDURE);
+    }
+
+    /**
+     * Return true if the count of quotes is odd.
+     */
+    private boolean hasOddQuotes() {
+      return quoteCount % 2 == 1;
+    }
+
+    /**
+     * Return the count of single quotes in the content.
+     */
+    private int countQuotes(String content) {
+      int count = 0;
+      for (int i = 0; i < content.length(); i++) {
+        if (content.charAt(i) == '\'') {
+          count++;
         }
       }
+      return count;
     }
 
     /**
@@ -117,7 +180,7 @@ public class DdlParser {
       String remaining = sb.toString().trim();
       if (remaining.length() > 0) {
         statements.add(remaining);
-        sb = new StringBuilder();
+        newBuffer();
       }
     }
   }
